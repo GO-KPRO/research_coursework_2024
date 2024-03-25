@@ -4,6 +4,9 @@
 #include <fstream>
 #include <random>
 #include <functional>
+#include <chrono>
+#include <ctime>
+#include <iomanip>
 
 class Place
 {
@@ -87,13 +90,17 @@ public:
         this->netName = netName;
     }
 
-    void out() {
+    std::string out() {
+        std::string res;
         if (transitionPosition >= 0) {
-            std::cout << netName << " " << transitionName << " " << transitionPosition << std::endl;
+            res = "Net name: " + netName + "\nTransition name: " + transitionName + "\nTransition number: " + std::to_string(transitionPosition);
+            std::cout << res << std::endl;
         }
         else {
-            std::cout << "No way!" << std::endl;
+            res = "No way!";
+            std::cout << res << std::endl;
         }
+        return res + "\n";
     }
 };
 
@@ -595,84 +602,107 @@ Step smartDefense(Bisimulation bisimulation, Step attack, std::vector<Bisimulati
     return variants[0];
 }
 
-void game(Bisimulation bisimulation, std::function<Step(Bisimulation, std::vector<Bisimulation>)> attackFunction, std::function<Step(Bisimulation, Step, std::vector<Bisimulation>)> defendFunction) {
+void game(Bisimulation bisimulation, std::function<Step(Bisimulation, std::vector<Bisimulation>)> attackFunction, std::function<Step(Bisimulation, Step, std::vector<Bisimulation>)> defenseFunction) {
     bisimulation.plotGraph("step0");
     int stepNum = 0;
+    int round = 1;
     std::vector<Bisimulation> history;
+    std::ofstream fout("log\\gameLog_" + std::to_string(time(0)) + ".log");
+    fout << "Net name - the name of the net in whitch the step was made\nTransition name - the name of made transition\nTransition number - the number of the transition in the transition array in the net" << std::endl;
+    std::cout << "Net name - the name of the net in whitch the step was made\nTransition name - the name of made transition\nTransition number - the number of the transition in the transition array in the net" << std::endl;
     while (true) {
+        for (size_t i = 0; i < history.size(); ++i) {
+            if (bisimulation == history[i]) {
+                fout << "cycle - Defender wins!" << std::endl;
+                std::cout << "cycle - Defender wins!" << std::endl;
+                fout.close();
+                return;
+            }
+        }
+        history.push_back(Bisimulation(bisimulation));
+        fout << "\nround " + std::to_string(round) << std::endl;
+        std::cout << "\nround " + std::to_string(round) << std::endl;
+        fout << "attack:" << std::endl;
         std::cout << "attack:" << std::endl;
 
         Step attack = attackFunction(bisimulation, history);
         ++stepNum;
-        attack.out();
+        fout << attack.out();
 
         if (!bisimulation.makeStep(attack)) {
+            fout << "Defender wins!" << std::endl;
             std::cout << "Defender wins!" << std::endl;
+            fout.close();
             return;
         }
 
         bisimulation.plotGraph("step" + std::to_string(stepNum), attack);
-        history.push_back(Bisimulation(bisimulation));
 
-        std::cout << "defend:" << std::endl;
+        fout << "defense:" << std::endl;
+        std::cout << "defense:" << std::endl;
 
-        Step defend = defendFunction(bisimulation, attack, history);
+        Step defend = defenseFunction(bisimulation, attack, history);
         ++stepNum;
-        defend.out();
+        fout << defend.out();
 
         if (!bisimulation.makeStep(defend)) {
+            fout << "Attacker wins!" << std::endl;
             std::cout << "Attacker wins!" << std::endl;
+            fout.close();
             return;
         }
 
-        for (size_t i = 0; i < history.size(); ++i) {
-            if (bisimulation == history[i]) {
-                std::cout << "cycle - Defender wins!" << std::endl;
-                return;
-            }
-        }
-
         bisimulation.plotGraph("step" + std::to_string(stepNum), attack, defend);
-        history.push_back(Bisimulation(bisimulation));
+        ++round;
     }
+    fout.close();
 }
 
 int main()
 {
     Net first("first");
-    std::vector<std::string> placesNames = { "A", "B", "C", "D", "E"};
-    std::vector<bool> markup = { true, true, true, false, false};
-    first.setPlaces(placesNames, markup);
-    std::vector<std::string> transitionsNames = { "a", "b", "c", "d"};
-    std::vector<std::vector<int>> input = {\
-    {0}, \
-    {0}, \
-    {1, 2}, \
-    {2} };
-    std::vector<std::vector<int>> output = {\
-    {1}, \
-    {2}, \
+    std::vector<std::string> firstPlacesNames = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M" };
+    std::vector<bool> firstMarkup = { true, true, true, true, false, false, true, false, false, false, false, false, false };
+    first.setPlaces(firstPlacesNames, firstMarkup);
+    std::vector<std::string> firstTransitionsNames = { "a", "b", "c", "d", "e", "f"};
+    std::vector<std::vector<int>> firstTransitionsInput = { \
+    {0, 1, 2}, \
+    {0, 2}, \
+    {3, 4, 5}, \
+    {7, 9}, \
     {3}, \
-    {3, 4} };
-    first.setTransitions(transitionsNames, input, output);
+    {10} };
+    std::vector<std::vector<int>> firstTransitionsOutput = { \
+    {3, 4}, \
+    {4, 5}, \
+    {6, 7}, \
+    {8}, \
+    {9, 10}, \
+    {11, 12} };
+    first.setTransitions(firstTransitionsNames, firstTransitionsInput, firstTransitionsOutput);
 
     Net second("second");
-    placesNames = { "F", "G", "H", "I", "J" };
-    markup = { true, true, true, false, false };
-    second.setPlaces(placesNames, markup);
-    transitionsNames = { "a", "b", "c", "d"};
-    input = {\
-    {0}, \
-    {0}, \
-    {1, 2}, \
-    {2} };
-    output = { \
-    {1}, \
-    {2}, \
+    std::vector<std::string> secondPlacesNames = { "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z" };
+    std::vector<bool> secondMarkup = { true, true, true, true, false, false, false, false, false, false, false, true, false };
+    second.setPlaces(secondPlacesNames, secondMarkup);
+    std::vector<std::string> secondTransitionsNames = { "a", "b", "c", "d", "e", "f" };
+    std::vector<std::vector<int>> secondTransitionsInput = { \
+    {0, 1, 2}, \
+    {0, 2}, \
+    {3, 4, 5}, \
+    {7, 9}, \
     {3}, \
-    {3, 4} };
-    second.setTransitions(transitionsNames, input, output);
+    {10} };
+    std::vector<std::vector<int>> secondTransitionsOutput = { \
+    {3, 4}, \
+    {4, 5}, \
+    {6, 7}, \
+    {8}, \
+    {9, 10}, \
+    {11, 12} };
+    second.setTransitions(secondTransitionsNames, secondTransitionsInput, secondTransitionsOutput);
     
-    Bisimulation nice("nice", first, second);
-    game(nice, smartAttack, smartDefense);
+    Bisimulation bisimulation("bisimulation", first, second);
+
+    game(bisimulation, smartAttack, smartDefense);
 }
